@@ -1,0 +1,7 @@
+"temiz", "sağlık", "salgın", "dikkat", 
+"aile", "anne", "çocuk", "huzur", 
+"millet", "şehit", "vatan", "fitne",
+"tevhid", "ümmet", "zulüm", "müslüman",
+"haram", "helal", "zarar", "mal",
+"sabır", "yardım", "imtihan", "gayret",
+"güven", "emin", "mübarek", "ahlak"

@@ -16,7 +16,7 @@ library(tidytext)
 corpus.tr.2015 <- data.frame("title" = c(), "date" = c(),"text" = c())
 
 files.pdf2 <- list.files(path = ".././2015-sonrasi-hutbeler", pattern = "pdf$")
-pdf_file2 <- file.path("./2015-sonrasi-hutbeler", files.pdf2)
+pdf_file2 <- file.path(".././2015-sonrasi-hutbeler", files.pdf2)
 
 for (i in 1:length(pdf_file2)) {
   data.frame("title" = NA , 
