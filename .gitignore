@@ -1,0 +1,7 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+api-keys.txt
+data/**
+premium-20210208/**
