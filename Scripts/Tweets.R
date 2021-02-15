@@ -32,7 +32,8 @@ kwords <- c("temiz", "sağlık", "salgın", "dikkat",
 
 kwords <- paste(kwords, collapse = " OR ")
 kwords <- paste("(", kwords, ")", sep="")
-kwords <- paste(kwords, "-is:retweet lang:tr place_country:TR")
+kwords <- paste(
+  kwords, "-is:retweet lang:tr place_country:TR")
 
 kw.nat <- c("millet", "şehit", "vatan", "fitne")
 kw.nat <- paste(kw.nat, collapse = " OR ")
@@ -41,18 +42,14 @@ kw.nat <- paste(kw.nat, " -is:retweet lang:tr place_country:TR -vekil")
 
 #paginate tweets and download
 
-start_date0 <- "2015-01-01T00:00:01Z" #start date of downloading tweets
-int0 <- ((ymd("2015-01-01")%--%ymd(Sys.Date())) /years(1))/300 #time between start date and today in years
-end_date0 <- sub(" ","T", paste0(lubridate::ymd_hms(start_date0) + lubridate::dyears(int0), "Z"))
-int <- int0
+start_date <- "2015-01-01T00:00:00Z" 
+end_date   <- "2015-05-20T23:09:54Z"  #2015'i tekrar indir... son tikandi: 5220: (485) 2020-04-14T11:16:27.000Z
+next_token <-"1jzu9lk96gu5npw2cd8au6g0g7o9ty8d4pas0neovwjh" # 2592: tikandigi: (492) 2015-08-02T01:07:33.000Z
 
-start_date <- "2015-05-31T23:56:53Z"
-end_date   <- "2015-06-30T00:00:12Z" 
-next_token <-""
-k <- 0
+# next toke: "1jzu9lk96gu5npw2cjadujiz37kp3e3qojymiue1pmd9"
 
-
-while(k<15*60){
+k <- 0 
+while(k<15*60*10){
 
   #for some reason, it doesn't work when I try to update start/end dates in each loop...
   #I guess token doesn't allow...
@@ -61,8 +58,8 @@ while(k<15*60){
                    start_date,
                    end_date, tok2, next_token)
   
-  jsonlite::write_json(df$data,paste0("data/d15/tem15/","data_",df$data$id[nrow(df$data)],".json"))
-  jsonlite::write_json(df$includes,paste0("data/d15/tem15/","includes_",df$data$id[nrow(df$data)],".json"))
+  jsonlite::write_json(df$data,paste0("data/d15_2/","data_",df$data$id[nrow(df$data)],".json"))
+  jsonlite::write_json(df$includes,paste0("data/d15_2/","includes_",df$data$id[nrow(df$data)],".json"))
   next_token <- df$meta$next_token #this is NULL if there are no pages left
   Sys.sleep(3.1)
   
@@ -73,10 +70,10 @@ while(k<15*60){
 
 ### merge downloaded tweets
 
-files <- list.files(path = "data/d15/tem15", pattern = "^data_")
-data_file <- file.path("data/d15/tem15", files)
+files <- list.files(path = "data/d15_2", pattern = "^data_")
+data_file <- file.path("data/d15_2", files)
 
-tws15_m <- data.frame("created_at" = c(), "author_id" = c(),"id" = c(), "text" = c())
+tws15_2 <- data.frame("created_at" = c(), "author_id" = c(),"id" = c(), "text" = c())
 
 for (i in 1:length(data_file)) {
   data.frame("created_at" = as_tibble(jsonlite::fromJSON(data_file[i]))$created_at , 
@@ -84,14 +81,31 @@ for (i in 1:length(data_file)) {
              "id" = as_tibble(jsonlite::fromJSON(data_file[i]))$id , 
              "text" = as_tibble(jsonlite::fromJSON(data_file[i])$text) ) -> doc
   colnames(doc) <- c("created_at", "author_id", "id", "text")
-  tws15_m  <- rbind(tws15_m,doc) 
-  cat(i, "\n",sep = "")
+  tws15_2  <- rbind(tws15_2,doc) 
+  cat("done: ", i, " left: ", length(data_file) - i,  "\n",sep = "")
 }
 
 
+tws15_2_td <- as_tibble(tws15_2)
+tws15 <- readRDS("data/tws15.RDS")
+saveRDS(tws15_2_td, "data/tws15_2.RDS")
+
+tws15_2_td %>% 
+  inner_join(tws15, by="id")
+
+
+tws1518 <- readRDS("data/tws1518.RDS")
+tws19 <- readRDS("data/tws19.RDS")
+
+tws1519 <- rbind(tws1518, tws19)
+
+tws1520 <- rbind(tws20_td, tws1519)
+
+saveRDS(tws1520, "data/tws1520.RDS")
 
 
 ################
+
 
 # tws <- search_tweets(kwords, lang = "tr", n = 18000, retryonratelimit = TRUE,
 #                     include_rts = FALSE, geocode = lookup_coords("Turkey"))

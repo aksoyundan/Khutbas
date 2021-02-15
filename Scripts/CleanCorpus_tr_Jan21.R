@@ -168,9 +168,11 @@ topics <- as_tibble(topics)
 
 topicProbabilities <- as.data.frame(lda_tm@gamma)
 
-library(ggthemes)
+
 
 corpus.tr <- cbind(corpus.tr[corpus.tr$text != "",], topicProbabilities)
+
+library(ggthemes)
 
 #corpus.tr$date <-lubridate::ymd(corpus.tr$date)
 
@@ -210,7 +212,7 @@ events <- data_frame(date = c(dmy(30082000), dmy(30082001), dmy(30082002), dmy(3
                                '',
                                ''))
 
-ggplot(corpus.tr[corpus.tr$date > ymd("2015-01-01"),], aes_string(x="date",y="V46")) +
+ggplot(corpus.tr[corpus.tr$date > ymd("2015-01-01"),], aes_string(x="date",y="V27")) +
   geom_line() +
   ylab("Nationalism in Friday sermons") +
   xlab("Time") +
@@ -221,6 +223,25 @@ ggplot(doc_lda, aes(gamma)) +
   geom_histogram() +
   facet_wrap(~topic) +
   scale_y_log10()
+
+corpus.tr.tb <- as_tibble(corpus.tr)
+
+corpus.tr.tb <- corpus.tr.tb %>% 
+  select(text, date, V9, V27, V32, V25, V33, V7, V28) %>% #careful here, select topic number based on topics
+  rename(health = V9, nationalism = V27, 
+         patience = V32, business = V25, 
+         umma = V33, trust = V7, family = V28) %>% 
+  mutate(week = floor_date(date, "week", week_start = getOption("lubridate.week.start", 5))) %>% 
+  pivot_longer(-c(week, text, date), names_to = "group", values_to = "beta")
+
+corpus.tr.tb %>% 
+  filter(group!="umma") %>% 
+ggplot(aes(week, beta, color = group)) + geom_smooth(method = "loess", span = .1) +
+  scale_y_continuous(trans='log10') + 
+  facet_wrap(~ group, ncol = 3) + 
+  theme(legend.position = "none") + ggtitle("Topics in Khutbas")
+
+saveRDS(corpus.tr.tb , "data/khutbas.RDS")
 
 zzzz
 
