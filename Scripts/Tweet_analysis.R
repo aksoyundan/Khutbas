@@ -9,9 +9,14 @@ library(ggplot2)
 
 tws1520 <- readRDS("data/tws1520_c.RDS")
 
+
+########################## weekly data #######################################
 tws1520$date <- ymd_hms(tws1520$created_at)
+tws1520$date_tr <- with_tz(tws1520$date, tzone ="Europe/Istanbul")
+
 tws1520 <- tws1520 %>% 
-  mutate(week = floor_date(date, "week", week_start = getOption("lubridate.week.start", 5))) 
+  mutate(week = floor_date(date, "week", 
+                           week_start = getOption("lubridate.week.start", 5))) 
 
 tws1520_week <- tws1520 %>%
   group_by(week) %>% 
@@ -26,6 +31,63 @@ tws1520_week <- tws1520 %>%
   ungroup()
 
 saveRDS(tws1520_week, "data/tws1520_week.RDS")
+
+
+########################## friday only #######################################
+
+tws1520_fr <- tws1520 %>% 
+  filter(wday(date_tr) == 6) %>% 
+  mutate(hour = hour(date_tr)) 
+
+tws1520_fr <- tws1520_fr %>%
+  group_by(week, hour) %>% 
+  summarise(business    = sum(com), 
+            family     = sum(fam),
+            health      = sum(hlt),
+            nationalism     = sum(nat),
+            patience    = sum(pat),
+            trust       = sum(tru),
+            umma        = sum(uma)) %>% 
+  ungroup()
+
+tws1520_fr <- tws1520_fr %>%
+  filter(week > "2015-01-01")
+
+tws1520_fr <- tws1520_fr %>% 
+  pivot_longer(-c(week, hour), names_to = "group", values_to = "count")
+  
+saveRDS(tws1520_fr, "data/tws1520_fr.RDS")
+
+
+########################## thursday & friday #######################################
+tws1520_thfr <- tws1520 %>% 
+  filter(wday(date_tr) == 6 | wday(date_tr) == 5 ) %>% 
+  mutate(day = wday(date_tr, label= TRUE))
+
+# be careful here, thu may be left to the previous week
+tws1520_thfr <- tws1520_thfr  %>% 
+  mutate(week = floor_date(date_tr, "week", 
+                           week_start = getOption("lubridate.week.start", 1))) 
+
+tws1520_thfr <- tws1520_thfr %>% 
+  filter(week > "2015-01-01") %>% 
+  group_by(week, day) %>% 
+  summarise(business    = sum(com), 
+            family     = sum(fam),
+            health      = sum(hlt),
+            nationalism     = sum(nat),
+            patience    = sum(pat),
+            trust       = sum(tru),
+            umma        = sum(uma)) %>% 
+  ungroup()
+
+tws1520_thfr <- tws1520_thfr %>% 
+  pivot_longer(-c(week, day), names_to = "group", values_to = "count")
+
+saveRDS(tws1520_thfr, "data/tws1520_thfr.RDS")
+
+
+########################## some playing #######################################
 
 tws1520 %>%
   group_by(week) %>% 
@@ -145,3 +207,12 @@ tws1520 %>%
 #     subtitle = "On six topics"
 #   )
 
+################################################## 
+#cleaning trolls
+#trolls <- as_tibble(read.csv("data/trolls/trolls_052020.csv"))
+#trolls <-  trolls %>% 
+#  select(userid) %>% 
+#  rename(author_id = userid)
+#
+#tws1520 <- tws1520 %>% 
+#  anti_join(trolls, by = "author_id") ## no trolls here...
