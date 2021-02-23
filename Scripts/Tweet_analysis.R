@@ -32,6 +32,33 @@ tws1520_week <- tws1520 %>%
 
 saveRDS(tws1520_week, "data/tws1520_week.RDS")
 
+########################## daily data #######################################
+tws1520$date <- ymd_hms(tws1520$created_at)
+tws1520$date_tr <- with_tz(tws1520$date, tzone ="Europe/Istanbul")
+
+tws1520_day <- tws1520 %>% 
+  mutate(day = floor_date(date_tr, "day")) 
+
+tws1520_day <- tws1520_day %>%
+  group_by(day) %>% 
+  summarise(business    = sum(com), 
+            family     = sum(fam),
+            health      = sum(hlt),
+            nationalism     = sum(nat),
+            patience    = sum(pat),
+            trust       = sum(tru),
+            umma        = sum(uma)) %>% 
+  ungroup()
+
+tws1520_day <- tws1520_day %>% 
+  mutate(week = floor_date(day, "week", 
+                           week_start = getOption("lubridate.week.start", 5))) %>% 
+  filter(week > "2015-01-01")
+
+tws1520_day <- tws1520_day %>% 
+  pivot_longer(-c(week, day), names_to = "group", values_to = "count")
+
+saveRDS(tws1520_day, "data/tws1520_day.RDS")
 
 ########################## friday only #######################################
 
@@ -42,9 +69,9 @@ tws1520_fr <- tws1520 %>%
 tws1520_fr <- tws1520_fr %>%
   group_by(week, hour) %>% 
   summarise(business    = sum(com), 
-            family     = sum(fam),
+            family      = sum(fam),
             health      = sum(hlt),
-            nationalism     = sum(nat),
+            nationalism = sum(nat),
             patience    = sum(pat),
             trust       = sum(tru),
             umma        = sum(uma)) %>% 

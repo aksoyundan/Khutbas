@@ -40,7 +40,7 @@ m %>%
   theme(legend.position = "none") 
 
 summary(lm(ratio~beta + lag.ratio + as.factor(group)+ as.factor(week), data = m[m$group!="umma",]))
-summary(lm(count~beta + lag.count + as.factor(group) + as.factor(week), data = m[m$group!="umma",]))
+summary(lm(count~beta + lag.count + as.factor(group) + as.factor(week), data = m))
 
 m$yweek <-  week(m$date)
 
@@ -165,3 +165,39 @@ mtf$cdiff = mtf$count - mtf$lag.mcount
 
 summary(m3 <- lm(count~beta + lag.mcount + as.factor(group) +as.factor(week) , data = mtf[mtf$day=="Fri",]))
 
+#####################################################
+#####################################################
+###################days##############
+
+k  <- readRDS("data/khutbas.RDS")
+d <- readRDS("data/tws1520_day.RDS")
+
+d$week <- ymd(d$week)
+
+d$wday <- wday(d$day)
+
+d <- d %>% 
+  left_join(k, by = c("week", "group"))
+
+d$sun = ifelse(d$wday==1, 1, 0)
+d$mon = ifelse(d$wday==2, 1, 0)
+d$tue = ifelse(d$wday==3, 1, 0)
+d$wed = ifelse(d$wday==4, 1, 0)
+d$thu = ifelse(d$wday==5, 1, 0)
+d$fri = ifelse(d$wday==6, 1, 0)
+d$sat = ifelse(d$wday==7, 1, 0)
+
+d$bsun = d$sun*d$beta
+d$bmon = d$mon*d$beta
+d$btue = d$tue*d$beta
+d$bwed = d$wed*d$beta
+d$bthu = d$thu*d$beta
+d$bfri = d$fri*d$beta
+d$bsat = d$sat*d$beta
+
+summary(m4 <- lm(count~beta + sat + sun + mon + tue + wed + thu +
+                   + bsat + bsun + bmon + btue + bwed + bthu +
+                   as.factor(group) + as.factor(week) , data = d))
+
+clubSandwich::coef_test(m4, vcov = "CR1", 
+                        cluster = d$week, test = "naive-t")[2:14,]
