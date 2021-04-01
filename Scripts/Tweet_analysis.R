@@ -113,25 +113,54 @@ tws1520_thfr <- tws1520_thfr %>%
 
 saveRDS(tws1520_thfr, "data/tws1520_thfr.RDS")
 
+########################## thursday only #######################################
+
+tws1520_th <- tws1520 %>% 
+  filter(wday(date_tr) == 5) %>% 
+  mutate(hour = hour(date_tr)) %>% 
+  mutate(week = floor_date(date_tr, "week", 
+                           week_start = getOption("lubridate.week.start", 1))) 
+
+tws1520_th <- tws1520_th %>%
+  group_by(week, hour) %>% 
+  summarise(business    = sum(com), 
+            family      = sum(fam),
+            health      = sum(hlt),
+            nationalism = sum(nat),
+            patience    = sum(pat),
+            trust       = sum(tru),
+            umma        = sum(uma)) %>% 
+  ungroup()
+
+tws1520_th <- tws1520_th %>%
+  filter(week > "2015-01-01")
+
+tws1520_th <- tws1520_th %>% 
+  pivot_longer(-c(week, hour), names_to = "group", values_to = "count")
+
+saveRDS(tws1520_th, "data/tws1520_th.RDS")
 
 ########################## some playing #######################################
 
-tws1520 %>%
+B <- tws1520 %>%
   group_by(week) %>% 
   filter(week > "2015-01-01") %>% 
   summarise(business    = sum(com), 
             family     = sum(fam),
             health      = sum(hlt),
-            natlsm     = sum(nat),
-            patien    = sum(pat),
-            trust       = sum(tru),
-            umma        = sum(uma)) %>%
-  select(-umma, -business) %>% 
+            nationalism     = sum(nat),
+            patience    = sum(pat),
+            trust       = sum(tru)) %>%
   pivot_longer(-week, names_to = "group", values_to = "count") %>% 
   ggplot(aes(week, count, color = group)) + geom_smooth(method = "loess", span = .1) +
   geom_line() +scale_y_continuous(trans='log10') + theme(legend.position = "bottom") +
-  scale_color_discrete(name = "Topic:", labels = c("family", "health", "nation", "patience", "trust"))
-
+  scale_color_discrete(name = "Topic:", 
+                       labels = c("business", "family", "health", "nation", "patience", "trust")) +
+  facet_wrap(~ group, ncol = 3) + theme_classic() +
+  ylab("# tweets on topic") + xlab("Date") +
+  theme(legend.position = "none", plot.title = element_text(size = 10, face = "bold")) +
+  ggtitle("B: Tweet topics by week")
+  
 tws1520 %>%
   group_by(week) %>% 
   filter(week > "2015-01-01") %>% 

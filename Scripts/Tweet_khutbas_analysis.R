@@ -31,39 +31,54 @@ m <- m %>%
   mutate(lag.ratio = lag(ratio, n = 1, default = NA)) %>% 
   ungroup()
   
-m %>% 
+C <- m %>% 
   filter(group!="umma") %>% 
-  ggplot(aes(beta, log(count), color = group)) + 
+  ggplot(aes(beta, count, color = group)) + 
   geom_point() +
+  scale_y_continuous(trans='log10') + 
   geom_smooth(method = "lm", span = .1) +
-  facet_wrap(~ group, ncol = 3) + 
-  theme(legend.position = "none") 
+  facet_wrap(~ group, ncol = 3) + theme_classic() +
+  theme(legend.position = "none", plot.title = element_text(size = 10, face = "bold")) + 
+  xlab("Sermon topic probability (beta)") + 
+  ylab("# tweets on topic next week") + ggtitle("C: Tweets versus Friday sermons")
 
-summary(lm(ratio~beta + lag.ratio + as.factor(group)+ as.factor(week), data = m[m$group!="umma",]))
-summary(lm(count~beta + lag.count + as.factor(group) + as.factor(week), data = m))
+A <- k %>% 
+  filter(group!="umma") %>% 
+  ggplot(aes(week, beta, color = group)) + geom_smooth(method = "loess", span = .1) +
+  scale_y_continuous(trans='log10') + 
+  facet_wrap(~ group, ncol = 3) +   
+  xlab("Date") + 
+  ylab("Topic probability (beta)") +  theme_classic() +
+  theme(legend.position = "none", plot.title = element_text(size = 10, face = "bold")) +
+  ggtitle("A: Friday sermon topics by week")
 
-m$yweek <-  week(m$date)
+ggpubr::ggarrange(A, B, C, D, ncol = 2, nrow = 2)
 
-summary(lm(ratio~beta + lag.ratio + as.factor(group)+ week + as.factor(yweek), data = m))
+m <- m %>% 
+  mutate(bbus = beta*ifelse(group == "business", 1, 0),
+         bfam = beta*ifelse(group == "family", 1, 0),
+         bhea = beta*ifelse(group == "health", 1, 0),
+         bnat = beta*ifelse(group == "nationalism", 1, 0),
+         bpat = beta*ifelse(group == "patience", 1, 0),
+         btru = beta*ifelse(group == "trust", 1, 0),
+         bumm = beta*ifelse(group == "umma", 1, 0),)
 
+summary(pois <- glm(count~bbus+bfam+bhea+bnat+bpat+btru+bumm + 
+                       as.factor(group) + lag.count +as.factor(week) , 
+                     family=poisson(link = "log"), data=m))
 
-mo <- lm(ratio~beta + lag.ratio + as.factor(group)+ week, data = m)
-ml <- lmer(ratio~beta + lag.ratio + as.factor(group) 
-           + (1 | week), data = m,  REML = FALSE)
+summary(pois2 <- glm(count~bbus+bfam+bhea+bnat+bpat+btru+bumm + 
+                      as.factor(group) + as.factor(week) , offset(log(lag.count)), 
+                    family=poisson(link = "log"), data=m))
 
-screenreg(list(mo, ml))
+summary(pois3 <- glm(count~bbus+bfam+bhea+bnat+bpat+btru+bumm + lag.count +
+                       as.factor(group) + as.factor(week), 
+                     family=quasipoisson, data=m))
 
-ml2 <- lmer(ratio~beta + lag.ratio + (1 + beta| group), data = m,  REML = TRUE)
-
-cml12 <- cbind(fixef(ml2)[2] + ranef(ml2)$group[,2], se.ranef(ml2)$group[,2] )
-
-plot(NA, xlim = c(0, .4), ylim = c(1, 7), xlab = "Slope", ylab = "", yaxt = "n")
-title("Regression Results")
-axis(2, 1:7, rownames(ranef(ml2)$group), las = 2)
-abline(v = 0, col = "gray")
-points(cml12[,1], 1:7, pch = 23, col = "black", bg = "black")
-segments((cml12[,1] - (qnorm(0.975) * cml12[,2])), 1:7, (cml12[,1] + (qnorm(0.975) * cml12[,2])), 
-         1:7, col = "black", lwd = 2)
+coefw <- as_tibble(clubSandwich::coef_test(pois, vcov = "CR1", 
+                                          cluster = m$week, test = "naive-t")[2:7,])
+coefw$Model <- "Week after Friday vs before"
+coefw$names <- names <- c("business", "family", "health", "nationalism", "patience", "trust")
 
 #####################################################
 #####################################################
@@ -72,71 +87,117 @@ f <- readRDS("data/tws1520_fr.RDS")
 
 f$week <- ymd(f$week)
 
-fk <- f %>% 
-  left_join(k, by = c("week", "group"))
+f$after  <- ifelse(f$hour > 11, 1, 0)
 
-fk$after  <- ifelse(fk$hour > 11, 1, 0)
-fk$bafter <- fk$beta*fk$after
-fk$ahour <- fk$hour*fk$after
-
-fk <- fk %>% 
-  group_by(week) %>% 
-  mutate(all = sum(count)) %>%  
-  mutate(ratio = 100*count/all) %>% 
-  ungroup() 
-
-summary(lmer(count~beta + after + bafter +  hour + as.factor(group) + (1 | week), data = fk))
-summary(lmer(ratio~beta + after + bafter + hour + as.factor(group) + (1 | week), data = fk))
-
-m <- lm(count~beta +  bafter + as.factor(hour) 
-        + as.factor(group) + as.factor(week), data = fk)
-
-clubSandwich::coef_test(m, vcov = "CR1", 
-          cluster = fk$week, test = "naive-t")[2:10,]
-
-clubSandwich::coef_test(m, vcov = "CR2", 
-                        cluster = fk$week, test = "Satterthwaite")[2:10,]
-
-m2 <- lmer(ratio~beta + after + bafter + (1|group), data = fk)
-
-
-fk_sum <- fk %>% 
+fk_sum <- f %>% 
   group_by(week, group, after) %>% 
-  summarise(mratio = sum(ratio),
-            mcount = sum(count)) %>% 
-  mutate(lag.mratio = lag(mratio, n = 1, default = NA)) %>% 
+  summarise(mcount = sum(count)) %>% 
   mutate(lag.mcount = lag(mcount, n = 1, default = NA)) %>% 
   mutate(diffmcount = mcount - lag.mcount) %>% 
-  mutate(diffmratio = mratio - lag.mratio) %>% 
-ungroup()
+  ungroup()
 
 fk_sum <- fk_sum %>% 
   left_join(k, by = c("week", "group"))
 
-fk_sum %>% 
-  ggplot(aes(beta, diffmcount, color = group)) + 
-  geom_point() +
-  geom_smooth(method = "lm", span = .1) +
-  facet_wrap(~ group, ncol = 3) + 
-  theme(legend.position = "none") 
+fk_sum <- fk_sum %>% 
+  mutate(bbus = beta*ifelse(group == "business", 1, 0),
+         bfam = beta*ifelse(group == "family", 1, 0),
+         bhea = beta*ifelse(group == "health", 1, 0),
+         bnat = beta*ifelse(group == "nationalism", 1, 0),
+         bpat = beta*ifelse(group == "patience", 1, 0),
+         btru = beta*ifelse(group == "trust", 1, 0),
+         bumm = beta*ifelse(group == "umma", 1, 0),)
 
-fk_sum %>% 
-  filter(group!="umma") %>% 
-  ggplot(aes(beta, diffmratio)) + 
-  geom_smooth(method = "lm", span = .1) +
-  geom_point(aes(beta, diffmratio, color = group)) 
+summary(mpois <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+bumm + 
+                       as.factor(group) + lag.mcount +as.factor(week) , 
+                     family=quasipoisson(link = "log"), data=fk_sum))
 
-fk_sum$bafter <- fk_sum$beta*fk_sum$after
+coef <- as_tibble(clubSandwich::coef_test(mpois, vcov = "CR1", 
+                        cluster = fk_sum$week, test = "naive-t")[2:7,])
 
-summary(m2 <- lm(mcount~beta + bafter + after+ as.factor(group) + as.factor(week) , data = fk_sum))
+coef$Model <- "Friday pm vs am"
+coef$names <- names <- c("business", "family", "health", "nationalism", "patience", "trust")
 
-summary(m3 <- lm(diffmcount~beta + as.factor(group) + as.factor(week) , data = fk_sum))
+coefs <- rbind(coef, coefw)
 
-summary(m4 <- lm(mcount~beta +lag.mcount + as.factor(group) + as.factor(week) , data = fk_sum))
+D <- ggplot(coefs, aes(reorder(names, -beta), beta, color = Model ))+
+  geom_hline(yintercept=0, linetype="dashed", color = "red") +
+  geom_linerange(aes(ymin = beta - SE, ymax = beta + SE), 
+                  position = position_dodge(width = 1/2), lwd = 1)+
+  geom_pointrange(aes(ymin = beta - SE*1.96, ymax = beta + SE*1.96), 
+                  position = position_dodge(width = 1/2), lwd = 1/2)+  theme_classic() +
+  labs(title = "D: Coefficients of quasipoisson regressions \n predicting tweet counts by sermon topic") +
+  coord_flip() + theme(plot.title = element_text(size = 10, face = "bold")) + 
+  xlab("Coef for beta (+95% CI & SE) ") + 
+  ylab("")
 
 
-clubSandwich::coef_test(m3, vcov = "CR1", 
-                        cluster = fk_sum$week, test = "naive-t")[2:4,]
+
+mpois2 <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+bumm + lag.mcount +
+                as.factor(group) + as.factor(week) , 
+              family=quasipoisson, data=fk_sum)
+
+#vCmpois <- sandwich::vcovCL(mpois, cluster = ~ week)
+vCmpois <- sandwich::vcovHC(mpois, type="HC0")
+
+std.err <- sqrt(diag(vCmpois))[1:15]
+
+r.est <- cbind(Estimate= coef(mpois)[1:15], "Robust SE" = std.err,
+               "Pr(>|z|)" = 2 * pnorm(abs(coef(mpois)[1:15]/std.err), lower.tail=FALSE),
+               LL = coef(mpois)[1:15] - 1.96 * std.err,
+               UL = coef(mpois)[1:15] + 1.96 * std.err)
+
+r.est
+
+
+summary(mqpois <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+bumm + 
+                       as.factor(group) + lag.mcount + as.factor(week), family=quasipoisson(link = "log"), data=fk_sum))
+
+clubSandwich::coef_test(mpois, vcov = "CR1", 
+                        cluster = fk_sum$week, test = "naive-t")[1:15,]
+
+summary(mpois <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+bumm + 
+                       as.factor(group) + lag.mcount, family=poisson(link = "log"), data=fk_sum))
+
+########################################################
+########################################################
+###############Placebo: Fridays the week before########
+k <- readRDS("data/khutbas.RDS")
+t <- readRDS("data/tws1520_fr.RDS")
+
+t$week <- ymd(t$week) + days(7)  #to be able to match with k in which weeks starts by fri
+
+
+t$after  <- ifelse(t$hour > 11, 1, 0)
+
+tk_sum <- t %>% 
+  group_by(week, group, after) %>% 
+  summarise(mcount = sum(count)) %>% 
+  mutate(lag.mcount = lag(mcount, n = 1, default = NA)) %>% 
+  mutate(diffmcount = mcount - lag.mcount) %>% 
+  ungroup()
+
+tk_sum <- tk_sum %>% 
+  left_join(k, by = c("week", "group"))
+
+tk_sum <- tk_sum %>% 
+  mutate(bbus = beta*ifelse(group == "business", 1, 0),
+         bfam = beta*ifelse(group == "family", 1, 0),
+         bhea = beta*ifelse(group == "health", 1, 0),
+         bnat = beta*ifelse(group == "nationalism", 1, 0),
+         bpat = beta*ifelse(group == "patience", 1, 0),
+         btru = beta*ifelse(group == "trust", 1, 0),
+         bumm = beta*ifelse(group == "umma", 1, 0),)
+
+mpoist <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+bumm + 
+                       as.factor(group) + lag.mcount + as.factor(week), 
+                     family=quasipoisson, data=tk_sum)
+
+coefp <- as_tibble(clubSandwich::coef_test(mpoist, vcov = "CR1", 
+                        cluster = tk_sum$week, test = "naive-t")[2:7,])
+
+coefp$Model <- "Placebo: week before Friday"
+coefp$names <- names <- c("business", "family", "health", "nationalism", "patience", "trust")
 
 #####################################################
 #####################################################
@@ -163,7 +224,22 @@ mtf<- mtf %>%
 
 mtf$cdiff = mtf$count - mtf$lag.mcount
 
-summary(m3 <- lm(count~beta + lag.mcount + as.factor(group) +as.factor(week) , data = mtf[mtf$day=="Fri",]))
+mtf <- mtf %>% 
+  mutate(bbus = beta*ifelse(group == "business", 1, 0),
+         bfam = beta*ifelse(group == "family", 1, 0),
+         bhea = beta*ifelse(group == "health", 1, 0),
+         bnat = beta*ifelse(group == "nationalism", 1, 0),
+         bpat = beta*ifelse(group == "patience", 1, 0),
+         btru = beta*ifelse(group == "trust", 1, 0),
+         bumm = beta*ifelse(group == "umma", 1, 0),)
+
+summary(m3 <- glm(count~bbus+bfam+bhea+bnat+bpat+btru+bumm
+                  + lag.mcount + as.factor(group) 
+                  +as.factor(week), family=poisson(link = "log"),
+                  data = mtf[mtf$day=="Fri",]))
+
+clubSandwich::coef_test(m3, vcov = "CR1", 
+                        cluster = mtf[mtf$day=="Fri",]$week, test = "naive-t")[1:15,]
 
 #####################################################
 #####################################################
