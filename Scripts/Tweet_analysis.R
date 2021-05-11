@@ -5,9 +5,16 @@ library(rtweet)
 library(tidyverse)
 library(lubridate)
 library(ggplot2)
-#library(stringr)
+library(stringr)
+library(tidytext)
 
 tws1520 <- readRDS("data/tws1520_c.RDS")
+tws1520$date <- ymd_hms(tws1520$created_at)
+tws1520$date_tr <- with_tz(tws1520$date, tzone ="Europe/Istanbul")
+
+pat <- tws1520 %>% 
+  filter(pat == 1 & (date_tr > dmy("03-07-2020") & date_tr < dmy("04-07-2020")) & hour(date_tr) > 11) 
+
 
 
 ########################## weekly data #######################################
@@ -152,14 +159,13 @@ B <- tws1520 %>%
             patience    = sum(pat),
             trust       = sum(tru)) %>%
   pivot_longer(-week, names_to = "group", values_to = "count") %>% 
-  ggplot(aes(week, count, color = group)) + geom_smooth(method = "loess", span = .1) +
+  ggplot(aes(week, count, color = group)) + 
   geom_line() +scale_y_continuous(trans='log10') + theme(legend.position = "bottom") +
   scale_color_discrete(name = "Topic:", 
                        labels = c("business", "family", "health", "nation", "patience", "trust")) +
   facet_wrap(~ group, ncol = 3) + theme_classic() +
-  ylab("# tweets on topic") + xlab("Date") +
-  theme(legend.position = "none", plot.title = element_text(size = 10, face = "bold")) +
-  ggtitle("B: Tweet topics by week")
+  ylab("# wekly tweets on topic") + xlab("Date") +
+  theme(legend.position = "none", plot.title = element_text(size = 10, face = "bold")) 
   
 tws1520 %>%
   group_by(week) %>% 

@@ -1,3 +1,4 @@
+options(max.print = 100000)
 library(tidyverse)
 library(lubridate)
 library(lme4)
@@ -75,6 +76,13 @@ summary(pois3 <- glm(count~bbus+bfam+bhea+bnat+bpat+btru+bumm + lag.count +
                        as.factor(group) + as.factor(week), 
                      family=quasipoisson, data=m))
 
+m <- m %>% 
+  mutate(ldown = ifelse( (week >= as.Date("2020-03-16") & week <= as.Date("2020-06-12")), 1, 0 ))
+         
+summary(pois4 <- glm(count~ldown*(bbus+bfam+bhea+bnat+bpat+btru+bumm) + lag.count +
+                       as.factor(group) +  as.factor(week), 
+                     family=quasipoisson, data=m))
+
 coefw <- as_tibble(clubSandwich::coef_test(pois, vcov = "CR1", 
                                           cluster = m$week, test = "naive-t")[2:7,])
 coefw$Model <- "Week after Friday vs before"
@@ -90,6 +98,7 @@ f$week <- ymd(f$week)
 f$after  <- ifelse(f$hour > 11, 1, 0)
 
 fk_sum <- f %>% 
+  filter(group != "umma") %>% 
   group_by(week, group, after) %>% 
   summarise(mcount = sum(count)) %>% 
   mutate(lag.mcount = lag(mcount, n = 1, default = NA)) %>% 
@@ -105,10 +114,9 @@ fk_sum <- fk_sum %>%
          bhea = beta*ifelse(group == "health", 1, 0),
          bnat = beta*ifelse(group == "nationalism", 1, 0),
          bpat = beta*ifelse(group == "patience", 1, 0),
-         btru = beta*ifelse(group == "trust", 1, 0),
-         bumm = beta*ifelse(group == "umma", 1, 0),)
+         btru = beta*ifelse(group == "trust", 1, 0))
 
-summary(mpois <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+bumm + 
+summary(mpois <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+ 
                        as.factor(group) + lag.mcount +as.factor(week) , 
                      family=quasipoisson(link = "log"), data=fk_sum))
 
@@ -119,6 +127,13 @@ coef$Model <- "Friday pm vs am"
 coef$names <- names <- c("business", "family", "health", "nationalism", "patience", "trust")
 
 coefs <- rbind(coef, coefw)
+
+fk_sum <- fk_sum  %>%  
+mutate(ldown = ifelse( (week >= as.Date("2020-03-16") & week <= as.Date("2020-06-12")), 1, 0 ))
+
+summary(mpois2 <- glm(mcount~bbus+bfam+bhea+bnat+bpat+btru+ 
+                       as.factor(group) + lag.mcount +as.factor(week) , 
+                     family=quasipoisson(link = "log"), data=fk_sum[fk_sum$ldown==0,]))
 
 D <- ggplot(coefs, aes(reorder(names, -beta), beta, color = Model ))+
   geom_hline(yintercept=0, linetype="dashed", color = "red") +
@@ -238,8 +253,16 @@ summary(m3 <- glm(count~bbus+bfam+bhea+bnat+bpat+btru+bumm
                   +as.factor(week), family=poisson(link = "log"),
                   data = mtf[mtf$day=="Fri",]))
 
+mtf <- mtf %>% 
+mutate(ldown = ifelse( (week >= as.Date("2020-03-16") & week <= as.Date("2020-06-12")), 1, 0 ))
+
 clubSandwich::coef_test(m3, vcov = "CR1", 
                         cluster = mtf[mtf$day=="Fri",]$week, test = "naive-t")[1:15,]
+
+summary(m3 <- glm(count~bbus+bfam+bhea+bnat+bpat+btru+bumm
+                  + lag.mcount + as.factor(group) 
+                  +as.factor(week), family=quasipoisson(link = "log"),
+                  data = mtf[mtf$day=="Fri",]))
 
 #####################################################
 #####################################################
